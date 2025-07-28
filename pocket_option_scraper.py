@@ -1,5 +1,3 @@
-# pocket_option_scraper.py
-
 import requests
 import datetime
 
@@ -52,6 +50,10 @@ def fetch_candles(asset, timeframe="1m", limit=10):
     except Exception as e:
         print(f"❌ Error fetching data for {asset}: {e}")
         return []
+
+def get_candles(asset, timeframe="1m", limit=10):
+    """Wrapper for compatibility: calls fetch_candles."""
+    return fetch_candles(asset, timeframe, limit)
 
 def get_all_assets():
     return ASSETS
