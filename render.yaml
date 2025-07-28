@@ -1,9 +1,11 @@
 services:
   - type: web
-    name: pocket-telegram-bot
+    name: pocket-signal-telegram
     env: python
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
+    autoDeploy: true
     envVars:
       - key: TELEGRAM_TOKEN
         value: 8330981377:AAH3GUheRzKgpd4NDx0cIIGo4FVs1PDMyTA
