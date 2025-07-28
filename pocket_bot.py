@@ -5,6 +5,7 @@ import json
 import datetime
 from strategy import generate_signal
 from telegram_bot import send_signal_telegram
+send_signal_telegram(signal)
 
 # ✅ FULL asset list (OTC + currency)
 ASSETS = [
