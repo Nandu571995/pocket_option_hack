@@ -1,90 +1,87 @@
 # strategy.py
 
-import ta
 import pandas as pd
+import numpy as np
+from ta.trend import EMAIndicator, MACD
+from ta.momentum import RSIIndicator
+from ta.volatility import BollingerBands
+from pocket_option_scraper import get_candles
 
-def generate_signal(df, timeframe):
+def generate_signal(asset, timeframe):
+    df = get_candles(asset, timeframe)
+
+    if not isinstance(df, pd.DataFrame) or len(df) < 50:
+        return None, 0, "Insufficient data"
+
     df = df.copy()
-    if len(df) < 50:
-        return None
+    df['close'] = pd.to_numeric(df['close'], errors='coerce')
 
-    # Indicators
-    df["EMA20"] = ta.trend.ema_indicator(df["close"], window=20)
-    df["EMA50"] = ta.trend.ema_indicator(df["close"], window=50)
-    macd = ta.trend.macd(df["close"])
-    df["MACD"] = macd.macd()
-    df["MACD_signal"] = macd.macd_signal()
-    df["RSI"] = ta.momentum.rsi(df["close"], window=14)
-    bb = ta.volatility.BollingerBands(df["close"])
-    df["BB_upper"] = bb.bollinger_hband()
-    df["BB_lower"] = bb.bollinger_lband()
+    # === Indicators ===
+    macd = MACD(df['close'])
+    df['macd'] = macd.macd()
+    df['macd_signal'] = macd.macd_signal()
 
+    ema_fast = EMAIndicator(df['close'], window=9)
+    ema_slow = EMAIndicator(df['close'], window=21)
+    df['ema_9'] = ema_fast.ema_indicator()
+    df['ema_21'] = ema_slow.ema_indicator()
+
+    rsi = RSIIndicator(df['close'], window=14)
+    df['rsi'] = rsi.rsi()
+
+    bb = BollingerBands(df['close'])
+    df['bb_upper'] = bb.bollinger_hband()
+    df['bb_lower'] = bb.bollinger_lband()
+
+    # === Latest candle data ===
     latest = df.iloc[-1]
-    previous = df.iloc[-2]
+    prev = df.iloc[-2]
 
-    signal = None
-    reason = []
+    score = 0
+    reasons = []
 
-    # ✅ More lenient MACD crossover
-    if previous["MACD"] < previous["MACD_signal"] and latest["MACD"] > latest["MACD_signal"]:
-        reason.append("MACD Bullish crossover")
-        signal = "BUY"
-    elif previous["MACD"] > previous["MACD_signal"] and latest["MACD"] < latest["MACD_signal"]:
-        reason.append("MACD Bearish crossover")
-        signal = "SELL"
+    # === Logic ===
 
-    # ✅ Reduced EMA crossover threshold
-    if latest["EMA20"] > latest["EMA50"] * 0.995:
-        if signal == "BUY":
-            reason.append("EMA20 > EMA50 (mild)")
-        elif not signal:
-            signal = "BUY"
-            reason.append("EMA20 > EMA50")
-    elif latest["EMA20"] < latest["EMA50"] * 1.005:
-        if signal == "SELL":
-            reason.append("EMA20 < EMA50 (mild)")
-        elif not signal:
-            signal = "SELL"
-            reason.append("EMA20 < EMA50")
+    # MACD Bullish
+    if latest['macd'] > latest['macd_signal']:
+        score += 1
+        reasons.append("MACD Bullish")
+    elif latest['macd'] < latest['macd_signal']:
+        score -= 1
+        reasons.append("MACD Bearish")
 
-    # ✅ Wider RSI zone
-    if latest["RSI"] < 40:
-        if signal == "BUY":
-            reason.append("RSI Oversold (<40)")
-        elif not signal:
-            signal = "BUY"
-            reason.append("RSI Oversold")
-    elif latest["RSI"] > 60:
-        if signal == "SELL":
-            reason.append("RSI Overbought (>60)")
-        elif not signal:
-            signal = "SELL"
-            reason.append("RSI Overbought")
+    # EMA Crossover
+    if latest['ema_9'] > latest['ema_21']:
+        score += 1
+        reasons.append("EMA Bullish")
+    elif latest['ema_9'] < latest['ema_21']:
+        score -= 1
+        reasons.append("EMA Bearish")
 
-    # ✅ Bollinger Band near touch instead of strict
-    if latest["close"] <= latest["BB_lower"] * 1.01:
-        if signal == "BUY":
-            reason.append("Near Lower BB")
-        elif not signal:
-            signal = "BUY"
-            reason.append("Near Lower BB")
-    elif latest["close"] >= latest["BB_upper"] * 0.99:
-        if signal == "SELL":
-            reason.append("Near Upper BB")
-        elif not signal:
-            signal = "SELL"
-            reason.append("Near Upper BB")
+    # RSI
+    if latest['rsi'] < 30:
+        score += 1
+        reasons.append("RSI Oversold")
+    elif latest['rsi'] > 70:
+        score -= 1
+        reasons.append("RSI Overbought")
 
-    # ✅ Confidence Score
-    confidence = int(len(reason) * 15 + (5 if signal else 0))
-    if confidence > 99:
-        confidence = 99
+    # Bollinger Band
+    if latest['close'] < latest['bb_lower']:
+        score += 1
+        reasons.append("Close below BB lower")
+    elif latest['close'] > latest['bb_upper']:
+        score -= 1
+        reasons.append("Close above BB upper")
 
-    if signal:
-        return {
-            "direction": signal,
-            "reason": " + ".join(reason),
-            "confidence": confidence
-        }
+    # === Final Decision ===
+    direction = None
+    confidence = abs(score) * 20  # Max 80%
+    reason_str = ", ".join(reasons)
 
-    return None
+    if score >= 2:
+        direction = "BUY"
+    elif score <= -2:
+        direction = "SELL"
+
+    return direction, confidence, reason_str
