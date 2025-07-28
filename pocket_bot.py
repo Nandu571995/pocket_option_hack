@@ -1,10 +1,18 @@
+# pocket_bot.py
+
 import time
 import json
 import datetime
 from strategy import generate_signal
 from telegram_bot import send_signal_telegram
 
-ASSETS = ["EUR/USD", "GBP/USD", "USD/JPY", "BTC/USD", "GOLD"]
+# ✅ FULL asset list (OTC + currency)
+ASSETS = [
+    "EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD",
+    "NZD/USD", "USD/CHF", "EUR/GBP", "EUR/JPY", "BTC/USD", "ETH/USD",
+    "GOLD", "SILVER", "LTC/USD", "OTC_EUR/USD", "OTC_GBP/USD", "OTC_USD/JPY"
+]
+
 TIMEFRAMES = ["1m", "3m", "5m", "10m"]
 
 def load_signals():
@@ -19,6 +27,7 @@ def save_signals(data):
         json.dump(data, f, indent=2)
 
 def validate_signal(signal):
+    # Dummy validation for now (replace with actual logic later)
     import random
     success = random.random() < 0.7
     signal['result'] = "✅" if success else "❌"
@@ -26,26 +35,35 @@ def validate_signal(signal):
 
 def start_pocket_bot():
     print("🚀 Pocket Option Signal Bot Running...")
+    signals = load_signals()
+
     while True:
         now = datetime.datetime.now()
-        current_minute = now.minute
-        current_second = now.second
+        seconds = now.second
 
-        if current_second == 0 and current_minute % 1 == 0:
-            signals = load_signals()
+        # Trigger 30–60 seconds before the candle starts
+        if 0 <= seconds <= 5:
             timestamp = now.strftime("%H:%M")
+            next_min = (now + datetime.timedelta(minutes=1)).strftime('%H:%M')
+
             for tf in TIMEFRAMES:
                 for asset in ASSETS:
                     direction, confidence, reason = generate_signal(asset, tf)
-                    signal = {
-                        "asset": asset,
-                        "direction": direction,
-                        "confidence": confidence,
-                        "reason": reason,
-                        "timeframe": tf,
-                        "timestamp": f"{timestamp}–{(now + datetime.timedelta(minutes=1)).strftime('%H:%M')}"
-                    }
-                    signals[tf].append(validate_signal(signal))
-                    send_signal_telegram(signal)
+
+                    if direction in ["BUY", "SELL"]:
+                        signal = {
+                            "asset": asset,
+                            "direction": direction,
+                            "confidence": confidence,
+                            "reason": reason,
+                            "timeframe": tf,
+                            "timestamp": f"{timestamp}–{next_min}"
+                        }
+                        signal = validate_signal(signal)
+                        signals[tf].append(signal)
+                        send_signal_telegram(signal)
+
             save_signals(signals)
+            time.sleep(60)  # avoid double execution
+
         time.sleep(1)
