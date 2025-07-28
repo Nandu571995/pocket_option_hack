@@ -1,3 +1,4 @@
+import os
 import threading
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
@@ -6,7 +7,7 @@ from pocket_bot import start_pocket_bot
 from telegram_bot import run_telegram_bot_background
 
 def dummy_http_server():
-    port = int(os.environ.get("PORT", 10000))  # This satisfies Render port binding
+    port = int(os.environ.get("PORT", 10000))  # 🟢 Required for Render Web Service
     with TCPServer(("0.0.0.0", port), SimpleHTTPRequestHandler) as httpd:
         print(f"🟢 Dummy server running on port {port}")
         httpd.serve_forever()
@@ -14,15 +15,15 @@ def dummy_http_server():
 if __name__ == "__main__":
     print("📦 Starting Pocket Option Signal Bot (Telegram only)")
 
-    # Run dummy HTTP server to satisfy Render Web Service
+    # Run dummy HTTP server to satisfy Render
     threading.Thread(target=dummy_http_server, daemon=True).start()
 
-    # Run trading signal bot
+    # Start trading signal generator
     threading.Thread(target=start_pocket_bot, daemon=True).start()
 
-    # Run Telegram bot
+    # Start Telegram bot
     threading.Thread(target=run_telegram_bot_background, daemon=True).start()
 
-    # Keep alive
+    # Keep main thread alive
     while True:
         pass
