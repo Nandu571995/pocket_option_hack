@@ -6,7 +6,6 @@ import datetime
 from strategy import generate_signal
 from telegram_bot import send_signal_telegram
 
-# ✅ Full asset list (OTC + currency pairs + crypto + metals)
 ASSETS = [
     "EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD",
     "NZD/USD", "USD/CHF", "EUR/GBP", "EUR/JPY", "BTC/USD", "ETH/USD",
@@ -39,7 +38,6 @@ def save_signal(signal):
         json.dump(data, f, indent=2)
 
 def validate_signal(signal):
-    # Placeholder logic – replace with actual candle validation
     import random
     success = random.random() < 0.75
     signal['result'] = "✅" if success else "❌"
@@ -51,7 +49,6 @@ def start_pocket_bot():
         now = datetime.datetime.now()
         seconds = now.second
 
-        # Check every minute at :00–:05 seconds to avoid overlaps
         if 0 <= seconds <= 5:
             timestamp = now.strftime("%H:%M")
             next_min = (now + datetime.timedelta(minutes=1)).strftime("%H:%M")
@@ -59,6 +56,7 @@ def start_pocket_bot():
             for tf in TIMEFRAMES:
                 for asset in ASSETS:
                     try:
+                        print(f"🔎 Generating signal for {asset} {tf}...")
                         direction, confidence, reason = generate_signal(asset, tf)
 
                         if direction in ["BUY", "SELL"]:
@@ -72,12 +70,16 @@ def start_pocket_bot():
                             }
 
                             validated = validate_signal(signal)
+                            print(f"📝 Signal ready: {validated}")
                             send_signal_telegram(validated)
+                            print(f"➡️ send_signal_telegram() called for {asset} {tf}")
                             save_signal(validated)
                             print(f"📡 Signal Sent: {signal['asset']} {signal['timeframe']} {signal['direction']}")
+                        else:
+                            print(f"⏭️ No actionable signal for {asset} {tf}: {reason}")
                     except Exception as e:
                         print(f"❌ Error generating signal for {asset} {tf}: {e}")
 
-            time.sleep(60)  # Skip next 60 seconds to avoid duplicate run
+            time.sleep(60)
         else:
             time.sleep(1)
