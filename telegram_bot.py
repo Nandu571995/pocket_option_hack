@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 from telegram import Bot
 
 load_dotenv()
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or"8330981377:AAH3GUheRzKgpd4NDx0cIIGo4FVs1PDMyTA"
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or"1014815784"
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
