@@ -1,11 +1,11 @@
 import requests
 import datetime
+import pandas as pd
 
 # Predefined list of OTC and major currency pairs
 ASSETS = [
     # Major currency pairs
     "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "NZD/USD", "USD/CAD",
-    
     # OTC assets (Pocket Option style)
     "EUR/JPY_otc", "GBP/JPY_otc", "AUD/JPY_otc", "USD/TRY_otc", "USD/ZAR_otc", 
     "EUR/USD_otc", "GBP/USD_otc", "AUD/USD_otc", "NZD/USD_otc", "USD/CAD_otc",
@@ -46,13 +46,14 @@ def fetch_candles(asset, timeframe="1m", limit=10):
                 "volume": data['v'][i],
             })
 
-        return candles
+        # Return as a DataFrame for use in strategy.py
+        return pd.DataFrame(candles)
     except Exception as e:
         print(f"❌ Error fetching data for {asset}: {e}")
-        return []
+        return pd.DataFrame([])
 
-def get_candles(asset, timeframe="1m", limit=10):
-    """Wrapper for compatibility: calls fetch_candles."""
+def get_candles(asset, timeframe="1m", limit=100):
+    """Wrapper for compatibility: calls fetch_candles and returns a DataFrame."""
     return fetch_candles(asset, timeframe, limit)
 
 def get_all_assets():
