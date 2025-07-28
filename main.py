@@ -1,5 +1,6 @@
 import os
 import threading
+import time
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
 
@@ -24,6 +25,9 @@ if __name__ == "__main__":
     # Start Telegram bot
     threading.Thread(target=run_telegram_bot_background, daemon=True).start()
 
-    # Keep main thread alive
-    while True:
-        pass
+    # Keep main thread alive without using 100% CPU
+    try:
+        while True:
+            time.sleep(10)
+    except KeyboardInterrupt:
+        print("🛑 Shutdown requested.")
