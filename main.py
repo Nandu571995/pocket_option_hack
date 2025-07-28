@@ -1,18 +1,17 @@
-# main.py
-
-import threading
 from pocket_bot import start_pocket_bot
 from telegram_bot import run_telegram_bot_background
+import threading
+import time
 
 if __name__ == "__main__":
-    print("📦 Starting Pocket Option Bot System...")
+    print("📦 Starting Pocket Option Signal Bot (Telegram Only)...")
 
-    # Start the Pocket Option bot in a background thread
+    # Start signal bot
     threading.Thread(target=start_pocket_bot, daemon=True).start()
 
-    # Start the Telegram bot in a background thread
+    # Start Telegram bot
     threading.Thread(target=run_telegram_bot_background, daemon=True).start()
 
-    # Keep the main thread alive
+    # Keep alive
     while True:
-        pass
+        time.sleep(60)
