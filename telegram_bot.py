@@ -6,8 +6,12 @@ import time
 from telegram import Bot
 
 # Load environment variables
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or "8330981377:AAH3GUheRzKgpd4NDx0cIIGo4FVs1PDMyTA"
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or "1014815784"
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+    print("❌ TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set in environment variables.")
+    raise Exception("Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in your Render environment.")
 
 # Initialize bot
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
@@ -22,16 +26,25 @@ def send_signal_telegram(signal):
             f"💬 *Reason:* {signal['reason']}\n"
             f"📊 *Confidence:* {signal['confidence']}%"
         )
+        print(f"Sending to Telegram: {message.replace(chr(10), '; ')}")
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message, parse_mode="Markdown")
         print("✅ Signal sent to Telegram:", signal['asset'], signal['timeframe'])
     except Exception as e:
         print("❌ Telegram send error:", str(e))
+
+def send_test_message():
+    try:
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="✅ Test message from Render deployment!", parse_mode="Markdown")
+        print("✅ Test message sent. If you see this in Telegram, your bot is working!")
+    except Exception as e:
+        print("❌ Telegram test send error:", str(e))
 
 def send_performance_summary(timeframe=None):
     try:
         with open("signals.json", "r") as f:
             data = json.load(f)
     except:
+        print("⚠️ Could not load signals.json for summary.")
         return
 
     summary = []
@@ -63,11 +76,15 @@ def send_performance_summary(timeframe=None):
     if summary:
         msg = "📊 *Performance Summary*\n" + "\n".join(summary)
         try:
+            print(f"Sending performance summary: {msg}")
             bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=msg, parse_mode="Markdown")
         except Exception as e:
             print("❌ Telegram summary send error:", str(e))
 
 def run_telegram_bot_background():
+    # Send a test message on start
+    send_test_message()
+
     while True:
         now = time.localtime()
         # Send hourly stats at HH:59
