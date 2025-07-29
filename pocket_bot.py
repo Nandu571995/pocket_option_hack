@@ -48,8 +48,10 @@ def start_pocket_bot():
     while True:
         now = datetime.datetime.now()
         seconds = now.second
+        print(f"🕒 Tick: {now.strftime('%H:%M:%S')} — Seconds: {seconds}")
 
-        if 0 <= seconds <= 5:
+        # 🔁 Always run (for testing) — change back to `if 0 <= seconds <= 5:` for production
+        if True:
             timestamp = now.strftime("%H:%M")
             next_min = (now + datetime.timedelta(minutes=1)).strftime("%H:%M")
 
@@ -72,14 +74,14 @@ def start_pocket_bot():
                             validated = validate_signal(signal)
                             print(f"📝 Signal ready: {validated}")
                             send_signal_telegram(validated)
-                            print(f"➡️ send_signal_telegram() called for {asset} {tf}")
+                            print(f"➡️ Telegram sent for {asset} {tf}")
                             save_signal(validated)
-                            print(f"📡 Signal Sent: {signal['asset']} {signal['timeframe']} {signal['direction']}")
+                            print(f"📡 Signal saved: {signal['asset']} {signal['timeframe']} {signal['direction']}")
                         else:
-                            print(f"⏭️ No actionable signal for {asset} {tf}: {reason}")
+                            print(f"⏭️ Skipped {asset} {tf} — No clear direction: {reason}")
                     except Exception as e:
-                        print(f"❌ Error generating signal for {asset} {tf}: {e}")
+                        print(f"❌ Error for {asset} {tf}: {e}")
 
-            time.sleep(60)
+            time.sleep(60)  # Wait 1 min before next signal scan
         else:
             time.sleep(1)
