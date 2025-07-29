@@ -1,12 +1,3 @@
-# strategy.py
-
-import pandas as pd
-import numpy as np
-from ta.trend import EMAIndicator, MACD
-from ta.momentum import RSIIndicator
-from ta.volatility import BollingerBands
-from pocket_option_scraper import get_candles
-
 def generate_signal(asset, timeframe):
     df = get_candles(asset, timeframe)
 
@@ -42,7 +33,6 @@ def generate_signal(asset, timeframe):
 
     # === Logic ===
 
-    # MACD Bullish
     if latest['macd'] > latest['macd_signal']:
         score += 1
         reasons.append("MACD Bullish")
@@ -50,7 +40,6 @@ def generate_signal(asset, timeframe):
         score -= 1
         reasons.append("MACD Bearish")
 
-    # EMA Crossover
     if latest['ema_9'] > latest['ema_21']:
         score += 1
         reasons.append("EMA Bullish")
@@ -58,7 +47,6 @@ def generate_signal(asset, timeframe):
         score -= 1
         reasons.append("EMA Bearish")
 
-    # RSI
     if latest['rsi'] < 30:
         score += 1
         reasons.append("RSI Oversold")
@@ -66,7 +54,6 @@ def generate_signal(asset, timeframe):
         score -= 1
         reasons.append("RSI Overbought")
 
-    # Bollinger Band
     if latest['close'] < latest['bb_lower']:
         score += 1
         reasons.append("Close below BB lower")
@@ -76,12 +63,13 @@ def generate_signal(asset, timeframe):
 
     # === Final Decision ===
     direction = None
-    confidence = abs(score) * 20  # Max 80%
+    confidence = abs(score) * 20  # 1 point = 20%, max 80%
     reason_str = ", ".join(reasons)
 
-    if score >= 2:
+    # 🔻 Relaxed threshold from 2 → 1
+    if score >= 1:
         direction = "BUY"
-    elif score <= -2:
+    elif score <= -1:
         direction = "SELL"
 
     return direction, confidence, reason_str
