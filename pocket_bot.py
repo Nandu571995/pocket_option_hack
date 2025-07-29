@@ -1,15 +1,27 @@
-# pocket_bot.py
-
 import time
 import json
 import datetime
 from strategy import generate_signal
 from telegram_bot import send_signal_telegram
 
+# ✅ Full asset list including major FX, OTC, crypto, metals, and commodities
 ASSETS = [
+    # Major Forex pairs
     "EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD",
-    "NZD/USD", "USD/CHF", "EUR/GBP", "EUR/JPY", "BTC/USD", "ETH/USD",
-    "GOLD", "SILVER", "LTC/USD", "OTC_EUR/USD", "OTC_GBP/USD", "OTC_USD/JPY"
+    "NZD/USD", "USD/CHF", "EUR/GBP", "EUR/JPY",
+
+    # Crypto
+    "BTC/USD", "ETH/USD", "LTC/USD",
+
+    # Metals
+    "GOLD", "SILVER",
+
+    # Commodities
+    "CRUDE_OIL", "BRENT_OIL", "NATURAL_GAS",
+
+    # OTC Forex (mapped via scraper)
+    "OTC_EUR/USD", "OTC_GBP/USD", "OTC_USD/JPY", "OTC_AUD/USD",
+    "OTC_NZD/USD", "OTC_USD/CAD", "OTC_USD/CHF", "OTC_EUR/JPY", "OTC_GBP/JPY"
 ]
 
 TIMEFRAMES = ["1m", "3m", "5m", "10m"]
@@ -50,7 +62,7 @@ def start_pocket_bot():
         seconds = now.second
         print(f"🕒 Tick: {now.strftime('%H:%M:%S')} — Seconds: {seconds}")
 
-        # 🔁 Always run (for testing) — change back to `if 0 <= seconds <= 5:` for production
+        # For test: run always. For prod, use: if 0 <= seconds <= 5:
         if True:
             timestamp = now.strftime("%H:%M")
             next_min = (now + datetime.timedelta(minutes=1)).strftime("%H:%M")
@@ -78,10 +90,10 @@ def start_pocket_bot():
                             save_signal(validated)
                             print(f"📡 Signal saved: {signal['asset']} {signal['timeframe']} {signal['direction']}")
                         else:
-                            print(f"⏭️ Skipped {asset} {tf} — No clear direction: {reason}")
+                            print(f"⏭️ Skipped {asset} {tf} — No signal: {reason}")
                     except Exception as e:
                         print(f"❌ Error for {asset} {tf}: {e}")
 
-            time.sleep(60)  # Wait 1 min before next signal scan
+            time.sleep(60)
         else:
             time.sleep(1)
