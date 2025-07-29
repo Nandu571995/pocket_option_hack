@@ -1,3 +1,12 @@
+# strategy.py
+
+import pandas as pd
+import numpy as np
+from ta.trend import EMAIndicator, MACD
+from ta.momentum import RSIIndicator
+from ta.volatility import BollingerBands
+from pocket_option_scraper import get_candles
+
 def generate_signal(asset, timeframe):
     df = get_candles(asset, timeframe)
 
@@ -11,6 +20,7 @@ def generate_signal(asset, timeframe):
     macd = MACD(df['close'])
     df['macd'] = macd.macd()
     df['macd_signal'] = macd.macd_signal()
+    df['macd_hist'] = macd.macd_diff()
 
     ema_fast = EMAIndicator(df['close'], window=9)
     ema_slow = EMAIndicator(df['close'], window=21)
@@ -23,6 +33,7 @@ def generate_signal(asset, timeframe):
     bb = BollingerBands(df['close'])
     df['bb_upper'] = bb.bollinger_hband()
     df['bb_lower'] = bb.bollinger_lband()
+    df['bb_middle'] = bb.bollinger_mavg()
 
     # === Latest candle data ===
     latest = df.iloc[-1]
@@ -31,8 +42,9 @@ def generate_signal(asset, timeframe):
     score = 0
     reasons = []
 
-    # === Logic ===
+    # === Looser Logic ===
 
+    # MACD
     if latest['macd'] > latest['macd_signal']:
         score += 1
         reasons.append("MACD Bullish")
@@ -40,6 +52,7 @@ def generate_signal(asset, timeframe):
         score -= 1
         reasons.append("MACD Bearish")
 
+    # EMA
     if latest['ema_9'] > latest['ema_21']:
         score += 1
         reasons.append("EMA Bullish")
@@ -47,29 +60,37 @@ def generate_signal(asset, timeframe):
         score -= 1
         reasons.append("EMA Bearish")
 
-    if latest['rsi'] < 30:
+    # RSI (relaxed)
+    if latest['rsi'] < 40:
         score += 1
-        reasons.append("RSI Oversold")
-    elif latest['rsi'] > 70:
+        reasons.append("RSI Slightly Oversold")
+    elif latest['rsi'] > 60:
         score -= 1
-        reasons.append("RSI Overbought")
+        reasons.append("RSI Slightly Overbought")
 
+    # Bollinger Band + middle band
     if latest['close'] < latest['bb_lower']:
         score += 1
-        reasons.append("Close below BB lower")
+        reasons.append("Close near BB lower")
     elif latest['close'] > latest['bb_upper']:
         score -= 1
-        reasons.append("Close above BB upper")
+        reasons.append("Close near BB upper")
+    elif latest['close'] < latest['bb_middle']:
+        score += 0.5
+        reasons.append("Close below BB mid")
+    elif latest['close'] > latest['bb_middle']:
+        score -= 0.5
+        reasons.append("Close above BB mid")
 
     # === Final Decision ===
     direction = None
-    confidence = abs(score) * 20  # 1 point = 20%, max 80%
+    confidence = min(abs(score) * 20, 100)
     reason_str = ", ".join(reasons)
 
-    # 🔻 Relaxed threshold from 2 → 1
-    if score >= 1:
+    # 🟢 Trigger signals even with score = ±0.5
+    if score > 0:
         direction = "BUY"
-    elif score <= -1:
+    elif score < 0:
         direction = "SELL"
 
-    return direction, confidence, reason_str
+    return direction, int(confidence), reason_str
