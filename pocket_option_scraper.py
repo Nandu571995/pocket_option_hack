@@ -19,15 +19,14 @@ TIMEFRAME_MAP = {
     "10m": 600
 }
 
-def fetch_candles(asset, timeframe="1m", limit=10):
+def fetch_candles(asset, timeframe="1m", limit=100):
     """
     Fetch real-time historical candle data from Pocket Option API endpoint.
-    asset: e.g., 'EUR/USD', 'EUR/USD_otc'
-    timeframe: '1m', '3m', '5m', '10m'
     """
     symbol = asset.replace("/", "").lower()
     if "otc" in asset.lower():
         symbol = symbol.replace("_otc", "") + "_otc"
+
     url = f"https://api.pocketoption.com/chart/history/{symbol}?period={TIMEFRAME_MAP[timeframe]}&limit={limit}"
 
     try:
@@ -46,14 +45,16 @@ def fetch_candles(asset, timeframe="1m", limit=10):
                 "volume": data['v'][i],
             })
 
-        # Return as a DataFrame for use in strategy.py
         return pd.DataFrame(candles)
+
     except Exception as e:
         print(f"❌ Error fetching data for {asset}: {e}")
         return pd.DataFrame([])
 
 def get_candles(asset, timeframe="1m", limit=100):
-    """Wrapper for compatibility: calls fetch_candles and returns a DataFrame."""
+    """
+    Wrapper for strategy.py: always fetch 100 candles.
+    """
     return fetch_candles(asset, timeframe, limit)
 
 def get_all_assets():
