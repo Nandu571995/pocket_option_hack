@@ -1,96 +1,80 @@
-# strategy.py
-
 import pandas as pd
 import numpy as np
-from ta.trend import EMAIndicator, MACD
-from ta.momentum import RSIIndicator
-from ta.volatility import BollingerBands
 from pocket_option_scraper import get_candles
 
 def generate_signal(asset, timeframe):
-    df = get_candles(asset, timeframe)
+    df = get_candles(asset, timeframe, limit=50)
+    
+    if df.empty or len(df) < 30:
+        print(f"⚠️ Not enough data for {asset} {timeframe}")
+        return "NO_SIGNAL", 0, "Not enough candles"
 
-    if not isinstance(df, pd.DataFrame) or len(df) < 50:
-        return None, 0, "Insufficient data"
+    try:
+        df["close"] = pd.to_numeric(df["close"])
+        df["ema9"] = df["close"].ewm(span=9).mean()
+        df["ema21"] = df["close"].ewm(span=21).mean()
+        df["macd"] = df["close"].ewm(span=12).mean() - df["close"].ewm(span=26).mean()
+        df["signal"] = df["macd"].ewm(span=9).mean()
+        df["rsi"] = compute_rsi(df["close"], 14)
 
-    df = df.copy()
-    df['close'] = pd.to_numeric(df['close'], errors='coerce')
+        # Bollinger Bands
+        df["sma20"] = df["close"].rolling(window=20).mean()
+        df["stddev"] = df["close"].rolling(window=20).std()
+        df["upper_band"] = df["sma20"] + 2 * df["stddev"]
+        df["lower_band"] = df["sma20"] - 2 * df["stddev"]
 
-    # === Indicators ===
-    macd = MACD(df['close'])
-    df['macd'] = macd.macd()
-    df['macd_signal'] = macd.macd_signal()
-    df['macd_hist'] = macd.macd_diff()
+        latest = df.iloc[-1]
+        prev = df.iloc[-2]
 
-    ema_fast = EMAIndicator(df['close'], window=9)
-    ema_slow = EMAIndicator(df['close'], window=21)
-    df['ema_9'] = ema_fast.ema_indicator()
-    df['ema_21'] = ema_slow.ema_indicator()
+        reasons = []
 
-    rsi = RSIIndicator(df['close'], window=14)
-    df['rsi'] = rsi.rsi()
+        # EMA Crossover
+        if prev["ema9"] < prev["ema21"] and latest["ema9"] > latest["ema21"]:
+            reasons.append("EMA9 crossed above EMA21")
+        elif prev["ema9"] > prev["ema21"] and latest["ema9"] < latest["ema21"]:
+            reasons.append("EMA9 crossed below EMA21")
 
-    bb = BollingerBands(df['close'])
-    df['bb_upper'] = bb.bollinger_hband()
-    df['bb_lower'] = bb.bollinger_lband()
-    df['bb_middle'] = bb.bollinger_mavg()
+        # MACD crossover
+        if prev["macd"] < prev["signal"] and latest["macd"] > latest["signal"]:
+            reasons.append("MACD bullish crossover")
+        elif prev["macd"] > prev["signal"] and latest["macd"] < latest["signal"]:
+            reasons.append("MACD bearish crossover")
 
-    # === Latest candle data ===
-    latest = df.iloc[-1]
-    prev = df.iloc[-2]
+        # RSI logic
+        if latest["rsi"] < 30:
+            reasons.append("RSI oversold")
+        elif latest["rsi"] > 70:
+            reasons.append("RSI overbought")
 
-    score = 0
-    reasons = []
+        # Bollinger Bounce
+        if latest["close"] <= latest["lower_band"]:
+            reasons.append("Price near lower Bollinger Band")
+        elif latest["close"] >= latest["upper_band"]:
+            reasons.append("Price near upper Bollinger Band")
 
-    # === Looser Logic ===
+        # Signal decision
+        if "EMA9 crossed above EMA21" in reasons or "MACD bullish crossover" in reasons or "RSI oversold" in reasons:
+            direction = "BUY"
+        elif "EMA9 crossed below EMA21" in reasons or "MACD bearish crossover" in reasons or "RSI overbought" in reasons:
+            direction = "SELL"
+        else:
+            print(f"⏭️ Skipped {asset} {timeframe} — No valid technical signal")
+            return "NO_SIGNAL", 0, "No valid technical signal"
 
-    # MACD
-    if latest['macd'] > latest['macd_signal']:
-        score += 1
-        reasons.append("MACD Bullish")
-    elif latest['macd'] < latest['macd_signal']:
-        score -= 1
-        reasons.append("MACD Bearish")
+        confidence = min(100, 50 + 10 * len(reasons))
+        reason_text = ", ".join(reasons)
 
-    # EMA
-    if latest['ema_9'] > latest['ema_21']:
-        score += 1
-        reasons.append("EMA Bullish")
-    elif latest['ema_9'] < latest['ema_21']:
-        score -= 1
-        reasons.append("EMA Bearish")
+        print(f"✅ Signal generated for {asset} {timeframe}: {direction} ({confidence}%) — {reason_text}")
+        return direction, confidence, reason_text
 
-    # RSI (relaxed)
-    if latest['rsi'] < 40:
-        score += 1
-        reasons.append("RSI Slightly Oversold")
-    elif latest['rsi'] > 60:
-        score -= 1
-        reasons.append("RSI Slightly Overbought")
+    except Exception as e:
+        print(f"❌ Strategy error for {asset} {timeframe}: {e}")
+        return "NO_SIGNAL", 0, str(e)
 
-    # Bollinger Band + middle band
-    if latest['close'] < latest['bb_lower']:
-        score += 1
-        reasons.append("Close near BB lower")
-    elif latest['close'] > latest['bb_upper']:
-        score -= 1
-        reasons.append("Close near BB upper")
-    elif latest['close'] < latest['bb_middle']:
-        score += 0.5
-        reasons.append("Close below BB mid")
-    elif latest['close'] > latest['bb_middle']:
-        score -= 0.5
-        reasons.append("Close above BB mid")
-
-    # === Final Decision ===
-    direction = None
-    confidence = min(abs(score) * 20, 100)
-    reason_str = ", ".join(reasons)
-
-    # 🟢 Trigger signals even with score = ±0.5
-    if score > 0:
-        direction = "BUY"
-    elif score < 0:
-        direction = "SELL"
-
-    return direction, int(confidence), reason_str
+def compute_rsi(series, period=14):
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
